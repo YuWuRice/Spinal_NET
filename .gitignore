@@ -9,3 +9,4 @@ post_msort_processing/logs/*
 post_msort_processing/utils_matlab/CellExplorer-master/*
 **pls_ignore**
 **.log
+tmp*

@@ -23,6 +23,7 @@ font = {'style' : 'normal',
         'size'   : 22}
 
 matplotlib.rc('font', **font)
+CMAP_STR = "tab10" #"Set3"
 
 def read_chronic_animal_npz(npzpath):
     # returns impedance records in kOhms.
@@ -128,30 +129,30 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
         for k in range(len(animal_dict["day_after_surgery"])):
             this_day=animal_dict["time_in_seconds"][k]/(24*3600)
             ax.scatter([this_day]*len(animal_dict["impedances_all"][k]), animal_dict["impedances_all"][k], alpha=1, marker='s', s=2, color=animal_colors_[animal_name])
-    plt.legend(loc="lower right", prop={"size":12}, borderpad=0.6)
+    plt.legend(loc="best", prop={"size":16}, borderpad=0.6)
     # ax.legend(handles=[(pltt,) for pltt in plots ], 
     #       labels=[animal_name for animal_name in dict_animals.keys()])
     return ax
 
 
 if __name__ == "__main__":
-    PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
-    FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
+    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data"
+    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
     N_DAYS = 84
     PERIOD_IN_DAYS = 7
 
     if not os.path.exists(PLOTFOLDER):
         os.makedirs(PLOTFOLDER)
     
-    npznames = list(filter(lambda x: x.endswith("_impedances.npz"), os.listdir(FOLDER)))
-    dict_animals = {}
+    npznames = sorted(list(filter(lambda x: x.endswith("_impedances.npz"), os.listdir(FOLDER))))
+    dict_animals = OrderedDict()
     for npzname in npznames:
         aname = npzname.split("_")[0]
         npzfullpath = os.path.join(FOLDER, npzname)
         adict = read_chronic_animal_npz(npzfullpath)
         dict_animals[aname] = custom_curation(aname, adict)
-
-    group_nice = ["BenMouse0", "nora", "mustang", "nacho"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
+    print(dict_animals.keys())
+    group_nice = ["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
     group_meeh = list(set(dict_animals.keys()) - set(group_nice))
     animal_groups = [
         group_nice,
@@ -168,7 +169,7 @@ if __name__ == "__main__":
     # all animals
     fig = plt.figure(figsize=(12,8))
     ax = fig.add_subplot(111)
-    cmap = get_cmap("Set3", len(dict_animals))
+    cmap = get_cmap(CMAP_STR, len(dict_animals))
     animal_colors = {}
     for i, animal_name in enumerate(dict_animals.keys()):
         animal_colors[animal_name] = cmap(i)

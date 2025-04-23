@@ -257,7 +257,8 @@ def process_multi_animals(animal_list, recording_types, save):
                 timedelta_floats=save_dict['timedelta_floats'],
                 units_per_channel=save_dict['units_per_channel'],
                 valid_timedelta_floats=save_dict['valid_timedelta_floats'],
-                p2p_amplitudes_mean=save_dict['p2p_amplitudes_mean']
+                p2p_amplitudes_mean=save_dict['p2p_amplitudes_mean'],
+                p2p_amplitudes_all=save_dict['p2p_amplitudes_all']
                 )
             df_save = pd.DataFrame()
             df_save['dayAfterSurgery'] = (save_dict['timedelta_floats']/(24*3600)).astype(int)

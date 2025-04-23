@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 import matplotlib.font_manager
+from matplotlib.colors import ListedColormap
 from matplotlib.cm import get_cmap
 import scipy.stats as stats
 
@@ -23,6 +24,9 @@ font = {'style' : 'normal',
 
 matplotlib.rc('font', **font)
 CMAP_STR = "tab10" #"Set3"
+
+YLABEL = "Amplitude (\u03bcV)"
+FEATURESET_OF_INTEREST = "p2p_amplitudes"
 
 def read_chronic_animal_npz(npzpath, keep_valid_only=True):
     # TODO process keep_valid_only argument
@@ -52,9 +56,26 @@ def truncate_timeseries_in_dict(animal_dict, first_day, last_day):
         newdict[kname] = timeseries[mask_inds]
     return newdict
 
+def remove_datapoints(animal_dict, inds_to_remove):
+    n_sessions = len(animal_dict["day_after_surgery"])
+    inds_mask = np.ones(n_sessions).astype(bool)
+    inds_mask[inds_to_remove] = 0
+    new_dict = {}
+    for kname, val in animal_dict.items():
+        if isinstance(val, np.ndarray):
+            new_dict[kname] = val[inds_mask]
+        else:
+            new_dict[kname] = [v for i, v in enumerate(val) if inds_mask[i]]
+    return new_dict
+
+
 def custom_curation(animal_name, animal_dict):
-    # just switch-case (animal_name) and pour in shit code for curation
-    pass
+    # just switch (animal_name) and pour in shit code for curation
+    if animal_name.lower()=="tacoma":
+        animal_dict = remove_datapoints(animal_dict, [-1])
+    elif animal_name.lower()=="yogurt":
+        animal_dict = remove_datapoints(animal_dict, [-1,-2,-3])
+    return animal_dict
 
 def group_by_period(animal_dict, duration_in_days, period_in_days):
     animal_dict = truncate_timeseries_in_dict(animal_dict, 0, duration_in_days-1)
@@ -71,12 +92,14 @@ def group_by_period(animal_dict, duration_in_days, period_in_days):
     #     sess_inds_grouped.extend([[] for _ in range(duration_in_weeks-n_weeks_actual)])
     animal_dict_grouped = {}
     for kname, timeseries in animal_dict.items():
+        # print(kname)
         # print("DBG", n_sessions, timeseries.shape)
         animal_dict_grouped[kname] = [timeseries[inds] for inds in sess_inds_grouped]
+    # print(animal_dict_grouped.keys())
     return animal_dict_grouped
 
 def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days):
-    """return mean and standar error (SE) of the datapoints of all given animals by `period_in_days` for the first `duration_in_days`"""
+    """make a boxplot of unit yield for given animals; x-axis it in days """
     # first group the sessions by week for each animal
     dict_animals_gbw = {}
     animal_names = list(dict_animals.keys())
@@ -84,14 +107,21 @@ def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days):
         dict_animals_gbw[animal_name] = group_by_period(animal_dict, duration_in_days, period_in_days)
     n_periods = int(np.ceil(duration_in_days/period_in_days))
     datasets = []
-    for i_period in range(n_periods):
-        datasets.append(np.concatenate([ad["units_per_channel"][i_period] for ad in dict_animals_gbw.values()]))
-        print("DBG datasets[-1].shape", datasets[-1].shape)
+    for i_week in range(n_periods):
+        tmp_datasets_all_animals = [np.array([])]# [np.concatenate(ad["impedances_all"][i_week].tolist()) for ad in dict_animals_gbw.values()]
+        for adict in dict_animals_gbw.values():
+            # print(adict.keys())
+            datasets_this_animal = adict["%s_all"%(FEATURESET_OF_INTEREST)][i_week].tolist() # list of ndarrays
+            if len(datasets_this_animal)>0:
+                tmp_datasets_all_animals.extend(datasets_this_animal)
+        datasets.append(np.concatenate(tmp_datasets_all_animals))
+        # print("DBG datasets[-1].shape", datasets[-1].shape)
     means = np.array([(np.mean(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
-    stdes = np.array([(stats.sem(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
-    days_approx = np.arange(0, duration_in_days, period_in_days)#[np.array([dataset.shape[0]>0 for dataset in datasets], dtype=bool)] # a rough count of days as a potential x-axis when plotting
+    # std_errors = np.array([(np.std(dataset)/np.sqrt(dataset.shape[0]) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
+    std_errors = np.array([(stats.sem(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets])
+    days_approx = np.arange(0, duration_in_days, period_in_days) # a rough count of days as a potential x-axis when plotting
     # ax.boxplot(datasets, positions=3.5+np.arange(duration_in_weeks)*7, widths=4, showfliers=False)
-    return means, stdes, days_approx
+    return means, std_errors, days_approx
 
 def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=None):
     dict_animals_t = {}
@@ -100,16 +130,31 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
     if ax is None:
         _, ax = plt.subplots()
     for animal_name, animal_dict in dict_animals_t.items():
-        ax.plot(animal_dict["day_after_surgery"], animal_dict["units_per_channel"], label=animal_name, linewidth=0.3, alpha=1, marker='s', markersize=6, color=animal_colors_[animal_name])
-    plt.legend(loc="upper right", prop={"size":16}, borderpad=0.6)
+        # ax.plot(animal_dict["day_after_surgery"], animal_dict["impedances_mean"], label=animal_name, linewidth=0.3, alpha=0.3, marker='s')
+        ax.plot(
+            animal_dict["timedelta_floats"]/(24*3600), 
+            animal_dict["%s_mean"%(FEATURESET_OF_INTEREST)], 
+            label=animal_name, linewidth=0.3, alpha=1, marker='s', 
+            color=animal_colors_[animal_name]
+        )
+        # scatters = []
+        for k in range(len(animal_dict["day_after_surgery"])):
+            # print(animal_dict["%s_all"%(FEATURESET_OF_INTEREST)][k])
+            this_day=animal_dict["timedelta_floats"][k]/(24*3600)
+            ax.scatter(
+                [this_day]*len(animal_dict["%s_all"%(FEATURESET_OF_INTEREST)][k]), 
+                animal_dict["%s_all"%(FEATURESET_OF_INTEREST)][k], 
+                alpha=1, marker='s', s=2, color=animal_colors_[animal_name]
+            )
+    plt.legend(loc="best", prop={"size":16}, borderpad=0.6)
+    # ax.legend(handles=[(pltt,) for pltt in plots ], 
+    #       labels=[animal_name for animal_name in dict_animals.keys()])
     return ax
 
 
 if __name__ == "__main__":
-    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
     FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
-    # PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
-    # FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
+    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
     N_DAYS = 84
     PERIOD_IN_DAYS = 7
 
@@ -121,9 +166,10 @@ if __name__ == "__main__":
     for npzname in npznames:
         aname = npzname.split("_")[0]
         npzfullpath = os.path.join(FOLDER, npzname)
-        dict_animals[aname] = read_chronic_animal_npz(npzfullpath)
-
-    group_nice = ["BenMouse0", "nora", "mustang", "nacho", "S02"]
+        adict = read_chronic_animal_npz(npzfullpath)
+        dict_animals[aname] = custom_curation(aname, adict)
+    print(dict_animals.keys())
+    group_nice = ["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
     group_meeh = list(set(dict_animals.keys()) - set(group_nice))
     animal_groups = [
         group_nice,
@@ -136,28 +182,27 @@ if __name__ == "__main__":
     means = means[tmp_mask]
     stdes = stdes[tmp_mask]
     days_approx = days_approx[tmp_mask]
+    
     # all animals
+    fig = plt.figure(figsize=(12,8))
+    ax = fig.add_subplot(111)
     cmap = get_cmap(CMAP_STR, len(dict_animals))
     animal_colors = {}
     for i, animal_name in enumerate(dict_animals.keys()):
         animal_colors[animal_name] = cmap(i)
-    fig = plt.figure(figsize=(12,8))
-    ax = fig.add_subplot(111)
     plot_shaded_datapoints(dict_animals, duration_in_days=N_DAYS, animal_colors_=animal_colors, ax=ax)
     ax.plot(days_approx+(PERIOD_IN_DAYS-1)/2, means, color='k', marker='s', linewidth=1.5, alpha=1)
     ax.errorbar(days_approx+(PERIOD_IN_DAYS-1)/2, means, yerr=stdes, fmt='', color='k', capsize=5)
     # ax.plot(days_approx+PERIOD_IN_DAYS, means, color='k', marker='s', linewidth=1.5, alpha=1)
     # ax.errorbar(days_approx+PERIOD_IN_DAYS, means, yerr=stdes, fmt='', color='k', capsize=5)
-    
     ax.set_xlim([-1, N_DAYS+PERIOD_IN_DAYS])
-    ax.set_ylim([0, 2.5])
     ax.set_xticks(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
     ax.set_xticklabels(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
     ax.set_xlabel("Day")
-    ax.set_ylabel("#Units per channel")
-    plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_all.png"))
-    plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_all.eps"))
+    ax.set_ylabel(YLABEL)
     plt.tight_layout()
+    plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_all.png"%FEATURESET_OF_INTEREST))
+    plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_all.eps"%FEATURESET_OF_INTEREST))
     plt.show()
 
     # for each group of animals
@@ -177,16 +222,14 @@ if __name__ == "__main__":
         ax.errorbar(days_approx_s+(PERIOD_IN_DAYS-1)/2, means_s, yerr=stdes_s, fmt='', color='k', capsize=5)
         # ax.plot(days_approx_s+PERIOD_IN_DAYS, means_s, color='k', marker='s', linewidth=1.5, alpha=1)
         # ax.errorbar(days_approx_s+PERIOD_IN_DAYS, means_s, yerr=stdes_s, fmt='', color='k', capsize=5)
-        
         ax.set_xlim([-1, N_DAYS+PERIOD_IN_DAYS])
-        ax.set_ylim([0, 2.5])
         # ax.set_xticks(np.arange(N_DAYS))
         # ax.set_xticklabels(np.arange(N_DAYS))
         ax.set_xticks(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
         ax.set_xticklabels(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
         ax.set_xlabel("Day")
-        ax.set_ylabel("#Units per channel")
-        plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_%s.png"%(group_name)))
-        plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_%s.eps"%(group_name)))
+        ax.set_ylabel(YLABEL)
         plt.tight_layout()
+        plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_%s.png"%(FEATURESET_OF_INTEREST, group_name)))
+        plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_%s.eps"%(FEATURESET_OF_INTEREST, group_name)))
         plt.show()
