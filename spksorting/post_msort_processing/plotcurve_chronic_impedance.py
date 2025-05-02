@@ -136,8 +136,11 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
 
 
 if __name__ == "__main__":
-    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data"
-    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
+    # FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data"
+    # PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
+    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
+    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
+    GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
     N_DAYS = 84
     PERIOD_IN_DAYS = 7
 
@@ -152,7 +155,8 @@ if __name__ == "__main__":
         adict = read_chronic_animal_npz(npzfullpath)
         dict_animals[aname] = custom_curation(aname, adict)
     print(dict_animals.keys())
-    group_nice = ["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
+    group_nice = GROUP_NICE
+    #["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
     group_meeh = list(set(dict_animals.keys()) - set(group_nice))
     animal_groups = [
         group_nice,

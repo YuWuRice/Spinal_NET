@@ -23,6 +23,8 @@ font = {'style' : 'normal',
         'size'   : 18}
 
 matplotlib.rc('font', **font)
+CMAP_STR = "tab10" #"Set3"
+
 
 def read_chronic_animal_npz(npzpath, keep_valid_only=True):
     # TODO process keep_valid_only argument
@@ -109,11 +111,16 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
 if __name__ == "__main__":
     # PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
     # FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
-    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
-    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
-    N_DAYS = 12
-    PERIOD_IN_DAYS = 3
-
+    # PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
+    # FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
+    # GROUP_NICE = ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho", "S02"]
+    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
+    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
+    GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
+    N_DAYS = 21
+    PERIOD_IN_DAYS = 7
+    # N_DAYS = 14
+    # PERIOD_IN_DAYS = 2
     if not os.path.exists(PLOTFOLDER):
         os.makedirs(PLOTFOLDER)
     
@@ -124,7 +131,7 @@ if __name__ == "__main__":
         npzfullpath = os.path.join(FOLDER, npzname)
         dict_animals[aname] = read_chronic_animal_npz(npzfullpath)
 
-    group_nice = ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho", "S02"]
+    group_nice = GROUP_NICE
     group_meeh = list(set(dict_animals.keys()) - set(group_nice))
     animal_groups = [
         group_nice,
@@ -135,7 +142,8 @@ if __name__ == "__main__":
     means, stdes, days_approx = stat_datapoints_by_period(dict_animals, N_DAYS, PERIOD_IN_DAYS)
 
     # all animals
-    cmap = get_cmap("Set3", len(dict_animals))
+    cmap = get_cmap(CMAP_STR, len(dict_animals))
+    # cmap = get_cmap("Set3", len(dict_animals))
     animal_colors = {}
     for i, animal_name in enumerate(dict_animals.keys()):
         animal_colors[animal_name] = cmap(i)

@@ -106,10 +106,13 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
 
 
 if __name__ == "__main__":
-    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
-    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
+    # PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
+    # FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
     # PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
     # FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
+    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
+    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
+    GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
     N_DAYS = 84
     PERIOD_IN_DAYS = 7
 
@@ -123,7 +126,7 @@ if __name__ == "__main__":
         npzfullpath = os.path.join(FOLDER, npzname)
         dict_animals[aname] = read_chronic_animal_npz(npzfullpath)
 
-    group_nice = ["BenMouse0", "nora", "mustang", "nacho", "S02"]
+    group_nice = GROUP_NICE
     group_meeh = list(set(dict_animals.keys()) - set(group_nice))
     animal_groups = [
         group_nice,

@@ -28,6 +28,26 @@ CMAP_STR = "tab10" #"Set3"
 YLABEL = "Amplitude (\u03bcV)"
 FEATURESET_OF_INTEREST = "p2p_amplitudes"
 
+# YLABEL = "Firing rate (spikes/sec)"
+# FEATURESET_OF_INTEREST = "firing_rates"
+
+# YLABEL = "SNR"
+# FEATURESET_OF_INTEREST = "snrs"
+
+# FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
+# PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
+# ["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
+FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
+PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
+GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
+PLOT_NAME = "interval"
+N_DAYS = 84
+PERIOD_IN_DAYS = 7
+# PLOT_NAME = "daily"
+# N_DAYS = 14
+# PERIOD_IN_DAYS = 2
+
+
 def read_chronic_animal_npz(npzpath, keep_valid_only=True):
     # TODO process keep_valid_only argument
     npzdict = np.load(npzpath, allow_pickle=True)
@@ -153,10 +173,6 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
 
 
 if __name__ == "__main__":
-    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
-    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
-    N_DAYS = 84
-    PERIOD_IN_DAYS = 7
 
     if not os.path.exists(PLOTFOLDER):
         os.makedirs(PLOTFOLDER)
@@ -169,7 +185,7 @@ if __name__ == "__main__":
         adict = read_chronic_animal_npz(npzfullpath)
         dict_animals[aname] = custom_curation(aname, adict)
     print(dict_animals.keys())
-    group_nice = ["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
+    group_nice = GROUP_NICE
     group_meeh = list(set(dict_animals.keys()) - set(group_nice))
     animal_groups = [
         group_nice,
@@ -201,8 +217,8 @@ if __name__ == "__main__":
     ax.set_xlabel("Day")
     ax.set_ylabel(YLABEL)
     plt.tight_layout()
-    plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_all.png"%FEATURESET_OF_INTEREST))
-    plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_all.eps"%FEATURESET_OF_INTEREST))
+    plt.savefig(os.path.join(PLOTFOLDER, "%s_%s_all.png"%(FEATURESET_OF_INTEREST, PLOT_NAME)))
+    plt.savefig(os.path.join(PLOTFOLDER, "%s_%s_all.eps"%(FEATURESET_OF_INTEREST, PLOT_NAME)))
     plt.show()
 
     # for each group of animals
@@ -230,6 +246,6 @@ if __name__ == "__main__":
         ax.set_xlabel("Day")
         ax.set_ylabel(YLABEL)
         plt.tight_layout()
-        plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_%s.png"%(FEATURESET_OF_INTEREST, group_name)))
-        plt.savefig(os.path.join(PLOTFOLDER, "%s_interval_%s.eps"%(FEATURESET_OF_INTEREST, group_name)))
+        plt.savefig(os.path.join(PLOTFOLDER, "%s_%s_%s.png"%(FEATURESET_OF_INTEREST, PLOT_NAME, group_name)))
+        plt.savefig(os.path.join(PLOTFOLDER, "%s_%s_%s.eps"%(FEATURESET_OF_INTEREST, PLOT_NAME, group_name)))
         plt.show()

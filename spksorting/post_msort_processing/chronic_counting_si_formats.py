@@ -1,6 +1,6 @@
 '''
 Count chronic stats of a mouse
-8/30/2022
+20250501
 '''
 import os
 import json
@@ -36,14 +36,27 @@ SESSION_NAMING_PATTERN = r"([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])" # eg 2023
 # SESSION_NAMING_PATTERN["OPENEPHYS"] = r"[0-9]+_([0-9]+-[0-9]+-[0-9]+_[0-9]+-[0-9]+-[0-9]+)"
 # DATETIME_STR_PATTERN["OPENEPHYS"] = "%Y-%m-%d_%H-%M-%S"
 
-DATA_SAVE_FOLDER = "./_pls_ignore_chronic_data_250422"
+DATA_SAVE_FOLDER = "./_pls_ignore_chronic_ebl_data_250430"
+
+SORTING_SUBDIRS = [
+    "spksort_allday/mountainsort4",
+    "spksort_allday/ms4_whiten_bothpeaks_thr4d5",
+    "spksort_allday/ms4_whiten_ebl128-18",
+    "spksort_allday/ms4_whiten_conventional",
+    "spksort_allday/ms4_whiten_bothpeaks_thr4d5_upto1100",
+]
 
 def get_session_stat(session_folder):
-    sorting_subdir = "spksort_allday/mountainsort4"
-    sorting_dir = os.path.join(session_folder, sorting_subdir)
-    template_waveforms = np.load(os.path.join(sorting_dir, "sorted_waveforms", "templates_average.npy"))
-    single_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask.csv"), header=None).values.squeeze().astype(bool)
-    sinmul_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask_with_multi.csv"), header=None).values.squeeze().astype(bool)
+    for sorting_subdir in SORTING_SUBDIRS:
+        sorting_dir = os.path.join(session_folder, sorting_subdir)
+        try:
+            template_waveforms = np.load(os.path.join(sorting_dir, "sorted_waveforms", "templates_average.npy"))
+            single_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask.csv"), header=None).values.squeeze().astype(bool)
+            sinmul_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask_with_multi.csv"), header=None).values.squeeze().astype(bool)
+            print("Successfully loaded from %s"%(sorting_dir))
+            break
+        except:
+            continue
     n_ch = template_waveforms.shape[2]
     # n_clus = template_waveforms.shape[0]
     template_peaks = np.max(template_waveforms, axis=1) # (n_clus, n_ch)
@@ -192,9 +205,16 @@ def process_multi_animals(animal_list, save, output_folder):
 
 if __name__=="__main__":
     animals_list = [
-        ("/storage/SSD_2T/spinal_stim_exp/processed/S02", "20230713"),
+        # ("/storage/SSD_2T/spinal_stim_exp/processed/S02", "20230713"),
+        ("/storage/wd_pcie1_4T/spinalEBL/proc/JAN018", "20250210"),
+        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL20", "20250317"),
+        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL16", "20250110"),
+        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL11", "20240818"),
+        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL22", "20250401"),
+        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL07", "20250604"),
     ]
+    n_animals = len(animals_list)
     print("STARTING")
     if not os.path.exists(DATA_SAVE_FOLDER):
         os.makedirs(DATA_SAVE_FOLDER)
-    process_multi_animals(animals_list, save=True, output_folder="./tmp20250422_1animal")
+    process_multi_animals(animals_list, save=True, output_folder="./tmp20250501_%danimal"%(n_animals))

@@ -134,8 +134,8 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
 
 
 if __name__ == "__main__":
-    PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
-    FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
+    PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_ebl_niceplots_250430"
+    FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_ebl_data_250430"
     N_DAYS = 15
     PERIOD_IN_DAYS = 3
 
