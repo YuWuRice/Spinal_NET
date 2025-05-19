@@ -1,3 +1,7 @@
+"""
+plotcurve_chronic.py
+Plot chronic experiement performance statistics. Each experiemnt is described by a single datapoint
+"""
 import os
 from copy import deepcopy
 from collections import OrderedDict
@@ -23,6 +27,28 @@ font = {'style' : 'normal',
 
 matplotlib.rc('font', **font)
 CMAP_STR = "tab10" #"Set3"
+FIELD_OF_INTEREST = "units_per_channel" # n_units, n_chs
+# "units_per_channel" # "n_sing_or_mult" # "units_per_channel"
+# PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
+# FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
+# PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
+# FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
+# PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250516"
+# FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
+# GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
+FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_pl32_data_250516"
+PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_pl32_plots_250516"
+GROUP_NICE = ["BenMouse0", "nora", "mustang", "nacho", "S02"]
+N_DAYS = 84
+PERIOD_IN_DAYS = 7
+
+ANIMAL_NAME_LUT = {
+    "BenMouse0": "Chronic Implant 1",
+    "nora": "Chronic Implant 5",
+    "mustang": "Chronic Implant 3",
+    "nacho": "Chronic Implant 4",
+    "S02": "Chronic Implant 2",
+}
 
 def read_chronic_animal_npz(npzpath, keep_valid_only=True):
     # TODO process keep_valid_only argument
@@ -75,7 +101,7 @@ def group_by_period(animal_dict, duration_in_days, period_in_days):
         animal_dict_grouped[kname] = [timeseries[inds] for inds in sess_inds_grouped]
     return animal_dict_grouped
 
-def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days):
+def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days, field_of_interest):
     """return mean and standar error (SE) of the datapoints of all given animals by `period_in_days` for the first `duration_in_days`"""
     # first group the sessions by week for each animal
     dict_animals_gbw = {}
@@ -85,7 +111,7 @@ def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days):
     n_periods = int(np.ceil(duration_in_days/period_in_days))
     datasets = []
     for i_period in range(n_periods):
-        datasets.append(np.concatenate([ad["units_per_channel"][i_period] for ad in dict_animals_gbw.values()]))
+        datasets.append(np.concatenate([ad[field_of_interest][i_period] for ad in dict_animals_gbw.values()]))
         print("DBG datasets[-1].shape", datasets[-1].shape)
     means = np.array([(np.mean(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
     stdes = np.array([(stats.sem(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
@@ -93,28 +119,20 @@ def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days):
     # ax.boxplot(datasets, positions=3.5+np.arange(duration_in_weeks)*7, widths=4, showfliers=False)
     return means, stdes, days_approx
 
-def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=None):
+def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, field_of_interest, ax=None):
     dict_animals_t = {}
     for animal_name, animal_dict in dict_animals.items():
         dict_animals_t[animal_name] = truncate_timeseries_in_dict(animal_dict, 0, duration_in_days-1)
     if ax is None:
         _, ax = plt.subplots()
     for animal_name, animal_dict in dict_animals_t.items():
-        ax.plot(animal_dict["day_after_surgery"], animal_dict["units_per_channel"], label=animal_name, linewidth=0.3, alpha=1, marker='s', markersize=6, color=animal_colors_[animal_name])
+        animal_label = ANIMAL_NAME_LUT.get(animal_name, animal_name)
+        ax.plot(animal_dict["day_after_surgery"], animal_dict[field_of_interest], label=animal_label, linewidth=0.3, alpha=1, marker='s', markersize=6, color=animal_colors_[animal_name])
     plt.legend(loc="upper right", prop={"size":16}, borderpad=0.6)
     return ax
 
 
 if __name__ == "__main__":
-    # PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
-    # FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
-    # PLOTFOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_niceplots_230614"
-    # FOLDER = "/media/hanlin/Liuyang_10T_backup/jiaaoZ/spinalcord/codes/_pls_ignore_chronic_data_230614"
-    PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
-    FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
-    GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
-    N_DAYS = 84
-    PERIOD_IN_DAYS = 7
 
     if not os.path.exists(PLOTFOLDER):
         os.makedirs(PLOTFOLDER)
@@ -134,7 +152,7 @@ if __name__ == "__main__":
     ]
     group_names = ["gud", "meh"]
 
-    means, stdes, days_approx = stat_datapoints_by_period(dict_animals, N_DAYS, PERIOD_IN_DAYS)
+    means, stdes, days_approx = stat_datapoints_by_period(dict_animals, N_DAYS, PERIOD_IN_DAYS, field_of_interest=FIELD_OF_INTEREST)
     tmp_mask = (~np.isnan(means))
     means = means[tmp_mask]
     stdes = stdes[tmp_mask]
@@ -146,27 +164,27 @@ if __name__ == "__main__":
         animal_colors[animal_name] = cmap(i)
     fig = plt.figure(figsize=(12,8))
     ax = fig.add_subplot(111)
-    plot_shaded_datapoints(dict_animals, duration_in_days=N_DAYS, animal_colors_=animal_colors, ax=ax)
+    plot_shaded_datapoints(dict_animals, duration_in_days=N_DAYS, animal_colors_=animal_colors, field_of_interest=FIELD_OF_INTEREST, ax=ax)
     ax.plot(days_approx+(PERIOD_IN_DAYS-1)/2, means, color='k', marker='s', linewidth=1.5, alpha=1)
     ax.errorbar(days_approx+(PERIOD_IN_DAYS-1)/2, means, yerr=stdes, fmt='', color='k', capsize=5)
     # ax.plot(days_approx+PERIOD_IN_DAYS, means, color='k', marker='s', linewidth=1.5, alpha=1)
     # ax.errorbar(days_approx+PERIOD_IN_DAYS, means, yerr=stdes, fmt='', color='k', capsize=5)
     
     ax.set_xlim([-1, N_DAYS+PERIOD_IN_DAYS])
-    ax.set_ylim([0, 2.5])
+    # ax.set_ylim([0, 2.5])
     ax.set_xticks(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
     ax.set_xticklabels(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
     ax.set_xlabel("Day")
-    ax.set_ylabel("#Units per channel")
-    plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_all.png"))
-    plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_all.eps"))
+    ax.set_ylabel(FIELD_OF_INTEREST)
+    plt.savefig(os.path.join(PLOTFOLDER, "curve_interval_%s_all.png"%(FIELD_OF_INTEREST)))
+    plt.savefig(os.path.join(PLOTFOLDER, "curve_interval_%s_all.eps"%(FIELD_OF_INTEREST)))
     plt.tight_layout()
     plt.show()
 
     # for each group of animals
     for group_name, animal_group in zip(group_names, animal_groups):
         dict_animals_subset = dict((k,dict_animals[k]) for k in dict_animals.keys() if k in animal_group)
-        means_s, stdes_s, days_approx_s = stat_datapoints_by_period(dict_animals_subset, N_DAYS, PERIOD_IN_DAYS)
+        means_s, stdes_s, days_approx_s = stat_datapoints_by_period(dict_animals_subset, N_DAYS, PERIOD_IN_DAYS, field_of_interest=FIELD_OF_INTEREST)
         tmp_mask = (~np.isnan(means_s))
         means_s = means_s[tmp_mask]
         stdes_s = stdes_s[tmp_mask]
@@ -175,21 +193,21 @@ if __name__ == "__main__":
         ax = fig.add_subplot(111)
         # box_plot_weekly(dict_animals_subset, duration_in_weeks=N_DAYS, ax=ax)
         # scatter_datapoints(dict_animals_subset, duration_in_days=N_DAYS*7, ax=ax)
-        plot_shaded_datapoints(dict_animals_subset, duration_in_days=N_DAYS, animal_colors_=animal_colors, ax=ax)
+        plot_shaded_datapoints(dict_animals_subset, duration_in_days=N_DAYS, animal_colors_=animal_colors, field_of_interest=FIELD_OF_INTEREST, ax=ax)
         ax.plot(days_approx_s+(PERIOD_IN_DAYS-1)/2, means_s, color='k', marker='s', linewidth=1.5, alpha=1)
         ax.errorbar(days_approx_s+(PERIOD_IN_DAYS-1)/2, means_s, yerr=stdes_s, fmt='', color='k', capsize=5)
         # ax.plot(days_approx_s+PERIOD_IN_DAYS, means_s, color='k', marker='s', linewidth=1.5, alpha=1)
         # ax.errorbar(days_approx_s+PERIOD_IN_DAYS, means_s, yerr=stdes_s, fmt='', color='k', capsize=5)
         
         ax.set_xlim([-1, N_DAYS+PERIOD_IN_DAYS])
-        ax.set_ylim([0, 2.5])
+        # ax.set_ylim([0, 2.5])
         # ax.set_xticks(np.arange(N_DAYS))
         # ax.set_xticklabels(np.arange(N_DAYS))
         ax.set_xticks(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
         ax.set_xticklabels(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
         ax.set_xlabel("Day")
-        ax.set_ylabel("#Units per channel")
-        plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_%s.png"%(group_name)))
-        plt.savefig(os.path.join(PLOTFOLDER, "unit_yield_interval_%s.eps"%(group_name)))
+        ax.set_ylabel(FIELD_OF_INTEREST)
+        plt.savefig(os.path.join(PLOTFOLDER, "curve_interval_%s_%s.png"%(FIELD_OF_INTEREST, group_name)))
+        plt.savefig(os.path.join(PLOTFOLDER, "curve_interval_%s_%s.eps"%(FIELD_OF_INTEREST, group_name)))
         plt.tight_layout()
         plt.show()

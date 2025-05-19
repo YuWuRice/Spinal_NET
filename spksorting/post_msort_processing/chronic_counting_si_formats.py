@@ -1,6 +1,9 @@
 '''
 Count chronic stats of a mouse
 20250501
+
+This is only used for 32ch data processed with SpikeInterface API.
+For current animals with EBL128+SpikeInterface, let's use chronic_counting_si_formats2.py instead.
 '''
 import os
 import json
@@ -21,11 +24,11 @@ import pandas as pd
 
 # matplotlib.rc('font', **font)
 
-from utils.read_mda import readmda
+# from utils.read_mda import readmda
 
 
 AMP_LIMIT_UV = 500
-
+FR_LIMIT_HZ = 0.5
 
 # fixed storage structure for spinal cord project chronic data
 # SESSION_NAMING_PATTERN = {}
@@ -36,36 +39,47 @@ SESSION_NAMING_PATTERN = r"([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])" # eg 2023
 # SESSION_NAMING_PATTERN["OPENEPHYS"] = r"[0-9]+_([0-9]+-[0-9]+-[0-9]+_[0-9]+-[0-9]+-[0-9]+)"
 # DATETIME_STR_PATTERN["OPENEPHYS"] = "%Y-%m-%d_%H-%M-%S"
 
-DATA_SAVE_FOLDER = "./_pls_ignore_chronic_ebl_data_250430"
+DATA_SAVE_FOLDER = "./_pls_ignore_chronic_pl32_data_250516"
 
 SORTING_SUBDIRS = [
     "spksort_allday/mountainsort4",
     "spksort_allday/ms4_whiten_bothpeaks_thr4d5",
     "spksort_allday/ms4_whiten_ebl128-18",
     "spksort_allday/ms4_whiten_conventional",
+    "spksort_allday/ms4_whiten_nosplit",
     "spksort_allday/ms4_whiten_bothpeaks_thr4d5_upto1100",
 ]
 
 def get_session_stat(session_folder):
+    template_waveforms = None
     for sorting_subdir in SORTING_SUBDIRS:
         sorting_dir = os.path.join(session_folder, sorting_subdir)
         try:
             template_waveforms = np.load(os.path.join(sorting_dir, "sorted_waveforms", "templates_average.npy"))
             single_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask.csv"), header=None).values.squeeze().astype(bool)
             sinmul_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask_with_multi.csv"), header=None).values.squeeze().astype(bool)
+            m = pd.read_csv(os.path.join(sorting_dir, "sorted_waveforms", "quality_metrics", "metrics.csv"))
             print("Successfully loaded from %s"%(sorting_dir))
             break
         except:
             continue
+    if template_waveforms is None:
+        raise ValueError
     n_ch = template_waveforms.shape[2]
     # n_clus = template_waveforms.shape[0]
+    firing_rates = m["firing_rate"]
+    snrs_allraw = m["snr"]
     template_peaks = np.max(template_waveforms, axis=1) # (n_clus, n_ch)
     template_troughs = np.min(template_waveforms, axis=1)
     template_p2ps = template_peaks - template_troughs
     p2p_amplitudes = np.max(template_p2ps, axis=1) # (n_clus, )
     single_unit_mask[p2p_amplitudes>AMP_LIMIT_UV] = False
+    single_unit_mask[firing_rates<FR_LIMIT_HZ] = False
     sinmul_unit_mask[p2p_amplitudes>AMP_LIMIT_UV] = False
+    sinmul_unit_mask[firing_rates<FR_LIMIT_HZ] = False
     p2p_amplitudes = p2p_amplitudes[sinmul_unit_mask]
+    firing_rates = firing_rates[sinmul_unit_mask]
+    snrs = snrs_allraw[sinmul_unit_mask]
     n_single_units = np.sum(single_unit_mask)
     n_sing_or_mult = np.sum(sinmul_unit_mask)
     stat_dict = {}
@@ -74,6 +88,10 @@ def get_session_stat(session_folder):
     stat_dict['template_peaks'] = template_peaks
     stat_dict['n_ch'] = n_ch
     stat_dict['p2p_amplitudes'] = p2p_amplitudes
+    stat_dict['snrs'] = snrs
+    stat_dict['snrs_su'] = snrs_allraw[single_unit_mask]
+    stat_dict['firing_rates'] = firing_rates
+    print("DBG n_single_unots:", n_single_units)
     return stat_dict
 
 def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes):
@@ -85,11 +103,17 @@ def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes)
     session_stats['n_sing_or_mult'] = []
     session_stats['n_ch'] = []
     session_stats['p2p_amplitudes'] = []
+    session_stats["snrs"] = []
+    session_stats["snrs_su"] = []
+    session_stats["firing_rates"] = []
     session_datetimestrs = []
     f_err = open("./tmp_errormsg.txt", "w")
     for session_folder in session_folders:
         try:
+            if session_folder.endswith("/"):
+                session_folder = session_folder[:-1]
             session_subfolder = os.path.basename(session_folder)
+            print("session_subfolder:", session_subfolder)
             datetimestr = re.match(SESSION_NAMING_PATTERN, session_subfolder)[1]
             session_datetime = datetime.datetime.strptime(datetimestr, DATETIME_STR_PATTERN)
             stat_dict = get_session_stat(session_folder)
@@ -97,13 +121,16 @@ def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes)
             session_stats['n_sing_or_mult'].append(stat_dict['n_sing_or_mult'])
             session_stats['n_ch'].append(stat_dict['n_ch'])
             session_stats['p2p_amplitudes'].append(stat_dict['p2p_amplitudes'])
+            session_stats['snrs'].append(stat_dict['snrs'])
+            session_stats['snrs_su'].append(stat_dict['snrs_su'])
+            session_stats['firing_rates'].append(stat_dict['firing_rates'])
             session_datetimes.append(session_datetime)
             session_datetimestrs.append(datetimestr)
             print(session_subfolder, stat_dict['n_single_units'], stat_dict['n_sing_or_mult'])
         except Exception as e:
-            traceback.print_exc(file=f_err)
-            # break
-            pass
+            print("Error in session %s: %s"%(session_folder, e), file=f_err)
+            print("Error in session %s: %s"%(session_folder, e))
+            continue
     f_err.close()
 
     # timedelta relative to first session.
@@ -122,8 +149,15 @@ def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes)
     # ax = fig.add_subplot(111)
     valid_session_ids = np.where(np.array(session_stats['n_sing_or_mult'])>0)[0]
     p2p_amplitudes_mean = [np.mean(session_stats['p2p_amplitudes'][sid]) for sid in valid_session_ids]
+    firing_rates_mean = [np.mean(session_stats['firing_rates'][sid]) for sid in valid_session_ids]
+    snrs_mean = [np.mean(session_stats['snrs'][sid]) for sid in valid_session_ids]
+    snrs_su_mean = [np.mean(session_stats['snrs_su'][sid]) for sid in valid_session_ids]
     valid_timedelta_floats = timedelta_floats[valid_session_ids]
     plot_axes[1].plot(valid_timedelta_floats, p2p_amplitudes_mean, label=animal_name, marker='.')
+    p2p_amplitudes_all = session_stats['p2p_amplitudes']
+    firing_rates_all = session_stats['firing_rates']
+    snrs_all = session_stats['snrs']
+    snrs_su_all = session_stats['snrs_su']
     p2p_amplitudes_all = session_stats['p2p_amplitudes']
     ret = {
         "timedelta_floats": timedelta_floats,
@@ -131,6 +165,12 @@ def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes)
         "valid_timedelta_floats": valid_timedelta_floats,
         "p2p_amplitudes_mean": p2p_amplitudes_mean,
         "p2p_amplitudes_all": p2p_amplitudes_all,
+        "snrs_mean": snrs_mean,
+        "snrs_all":  snrs_all,
+        "snrs_su_mean": snrs_su_mean,
+        "snrs_su_all":  snrs_su_all,
+        "firing_rates_mean": firing_rates_mean,
+        "firing_rates_all":  firing_rates_all,
         "session_datetimestrs": session_datetimestrs,
         "n_ch": session_stats['n_ch']
     }
@@ -157,12 +197,18 @@ def process_multi_animals(animal_list, save, output_folder):
         save_dict = process_one_animal(animal_name, session_folders, surgery_datestr, [ax1, ax2])
         if save:
             np.savez(
-                os.path.join(DATA_SAVE_FOLDER, animal_name+"_firings.npz"),
+                os.path.join(output_folder, animal_name+"_firings.npz"),
                 timedelta_floats=save_dict['timedelta_floats'],
                 units_per_channel=save_dict['units_per_channel'],
                 valid_timedelta_floats=save_dict['valid_timedelta_floats'],
                 p2p_amplitudes_mean=save_dict['p2p_amplitudes_mean'],
-                p2p_amplitudes_all=np.array(save_dict['p2p_amplitudes_all'], dtype=object)
+                p2p_amplitudes_all=np.array(save_dict['p2p_amplitudes_all'], dtype=object),
+                n_units=np.array([len(p2p_amplitudes) for p2p_amplitudes in save_dict['p2p_amplitudes_all']], dtype=int),
+                snrs_mean=save_dict['snrs_mean'],
+                snrs_all=np.array(save_dict['snrs_all'], dtype=object),
+                snrs_su_mean=save_dict['snrs_su_mean'],
+                snrs_su_all=np.array(save_dict['snrs_su_all'], dtype=object),
+                n_chs=save_dict['n_ch'],
                 )
             df_save = pd.DataFrame()
             df_save['dayAfterSurgery'] = (save_dict['timedelta_floats']/(24*3600)).astype(int)
@@ -170,7 +216,9 @@ def process_multi_animals(animal_list, save, output_folder):
             df_save['n_units'] = [len(p2p_amplitudes) for p2p_amplitudes in save_dict['p2p_amplitudes_all']]
             df_save['n_channels'] = save_dict['n_ch']
             df_save['amplitudes_accepted_units'] = save_dict['p2p_amplitudes_all']
-            df_save.to_csv(os.path.join(DATA_SAVE_FOLDER, animal_name+"_firings.csv"), index=False)
+            df_save['snrs_accepted_units'] = save_dict['snrs_all']
+            df_save["snrs_su"] = save_dict['snrs_su_all']
+            df_save.to_csv(os.path.join(output_folder, animal_name+"_firings.csv"), index=False)
 
     for ax in [ax1, ax2]:
         ax.legend()
@@ -189,32 +237,32 @@ def process_multi_animals(animal_list, save, output_folder):
     # for ax in [ax1,ax2]:
     #     ax.set_xlim([-1*(10*3600), ax.get_xlim()[1]+40*24*3600])
     # plt.subplots_adjust(bottom=0.1)
-    fig1.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_n_units.eps"))
-    fig1.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_n_units.png"))
-    fig2.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_ampltud.png"))
-    fig2.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_ampltud.eps"))
+    fig1.savefig(os.path.join(output_folder, "_pls_ignore_n_units.eps"))
+    fig1.savefig(os.path.join(output_folder, "_pls_ignore_n_units.png"))
+    fig2.savefig(os.path.join(output_folder, "_pls_ignore_ampltud.png"))
+    fig2.savefig(os.path.join(output_folder, "_pls_ignore_ampltud.eps"))
     for ax in [ax1,ax2]:
         ax.set_xlim([-1*(10*3600), 120*(24*3600)])
-    fig1.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_n_units_120days.eps"))
-    fig1.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_n_units_120days.png"))
-    fig2.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_ampltud_120days.png"))
-    fig2.savefig(os.path.join(DATA_SAVE_FOLDER, "_pls_ignore_ampltud_120days.eps"))
+    fig1.savefig(os.path.join(output_folder, "_pls_ignore_n_units_120days.eps"))
+    fig1.savefig(os.path.join(output_folder, "_pls_ignore_n_units_120days.png"))
+    fig2.savefig(os.path.join(output_folder, "_pls_ignore_ampltud_120days.png"))
+    fig2.savefig(os.path.join(output_folder, "_pls_ignore_ampltud_120days.eps"))
     plt.close()
     plt.close()
 
 
 if __name__=="__main__":
     animals_list = [
-        # ("/storage/SSD_2T/spinal_stim_exp/processed/S02", "20230713"),
-        ("/storage/wd_pcie1_4T/spinalEBL/proc/JAN018", "20250210"),
-        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL20", "20250317"),
-        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL16", "20250110"),
-        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL11", "20240818"),
-        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL22", "20250401"),
-        ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL07", "20250604"),
+        ("/storage/SSD_2T/spinal_stim_exp/processed/S02", "20230713"),
+        # ("/storage/wd_pcie1_4T/spinalEBL/proc/JAN018", "20250210"),
+        # ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL20", "20250317"),
+        # ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL16", "20250110"),
+        # ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL11", "20240818"),
+        # ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL22", "20250401"),
+        # ("/storage/wd_pcie1_4T/spinalEBL/proc/EBL07", "20250604"),
     ]
     n_animals = len(animals_list)
     print("STARTING")
     if not os.path.exists(DATA_SAVE_FOLDER):
         os.makedirs(DATA_SAVE_FOLDER)
-    process_multi_animals(animals_list, save=True, output_folder="./tmp20250501_%danimal"%(n_animals))
+    process_multi_animals(animals_list, save=True, output_folder=DATA_SAVE_FOLDER)

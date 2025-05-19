@@ -1,3 +1,8 @@
+"""
+plotcurve_chronic_scatters.py
+Plot chronic experiement performance statistics. Each experiemnt is a dataset of (n_chs) or (n_units)
+So each experiemnt is plotted as scatters on a vertical line (same time axis)
+"""
 import os
 from copy import deepcopy
 from collections import OrderedDict
@@ -25,21 +30,42 @@ font = {'style' : 'normal',
 matplotlib.rc('font', **font)
 CMAP_STR = "tab10" #"Set3"
 
-YLABEL = "Amplitude (\u03bcV)"
-FEATURESET_OF_INTEREST = "p2p_amplitudes"
+# YLABEL = "Amplitude (\u03bcV)"
+# FEATURESET_OF_INTEREST = "p2p_amplitudes"
+# YLIM = None
 
 # YLABEL = "Firing rate (spikes/sec)"
 # FEATURESET_OF_INTEREST = "firing_rates"
+# YLIM = [0, 25]
 
-# YLABEL = "SNR"
-# FEATURESET_OF_INTEREST = "snrs"
+# YLABEL = "SNR (single unit)"
+# FEATURESET_OF_INTEREST = "snrs_su"
+# YLIM = None
+
+YLABEL = "SNR"
+FEATURESET_OF_INTEREST = "snrs"
+YLIM = None
 
 # FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_data_250422"
 # PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_plots_250422"
 # ["BenMouse0", "nora", "mustang", "nacho", "S02"]# ["BenMouse0", "BenMouse1", "nora", "mustang", "nacho"]
-FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
-PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
-GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
+
+# FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_data_250430"
+# PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_ebl_plots_250430"
+# GROUP_NICE = ["EBL10", "EBL11", "EBL12"]
+
+FOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_pl32_data_250516"
+PLOTFOLDER = "/home/xlruut/jiaao_workspace/legacy/Spinal_NET/_pls_ignore_chronic_pl32_plots_250516"
+GROUP_NICE = ["BenMouse0", "nora", "mustang", "nacho", "S02"]
+
+ANIMAL_NAME_LUT = {
+    "BenMouse0": "Chronic Implant 1",
+    "nora": "Chronic Implant 5",
+    "mustang": "Chronic Implant 3",
+    "nacho": "Chronic Implant 4",
+    "S02": "Chronic Implant 2",
+}
+
 PLOT_NAME = "interval"
 N_DAYS = 84
 PERIOD_IN_DAYS = 7
@@ -52,6 +78,7 @@ def read_chronic_animal_npz(npzpath, keep_valid_only=True):
     # TODO process keep_valid_only argument
     npzdict = np.load(npzpath, allow_pickle=True)
     ddict = dict(npzdict.items())
+    # print("DBG %s ddict.keys()" % (npzpath), list(ddict.keys()))
 
     if keep_valid_only:
         assert np.all(np.diff(ddict["valid_timedelta_floats"])>0) # assert that the sessions are already sorted by datetime
@@ -138,7 +165,7 @@ def stat_datapoints_by_period(dict_animals, duration_in_days, period_in_days):
         # print("DBG datasets[-1].shape", datasets[-1].shape)
     means = np.array([(np.mean(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
     # std_errors = np.array([(np.std(dataset)/np.sqrt(dataset.shape[0]) if dataset.shape[0]>0 else np.nan) for dataset in datasets ])
-    std_errors = np.array([(stats.sem(dataset) if dataset.shape[0]>0 else np.nan) for dataset in datasets])
+    std_errors = np.array([(stats.sem(dataset) if dataset.shape[0]>1 else np.nan) for dataset in datasets])
     days_approx = np.arange(0, duration_in_days, period_in_days) # a rough count of days as a potential x-axis when plotting
     # ax.boxplot(datasets, positions=3.5+np.arange(duration_in_weeks)*7, widths=4, showfliers=False)
     return means, std_errors, days_approx
@@ -150,11 +177,12 @@ def plot_shaded_datapoints(dict_animals, duration_in_days, animal_colors_, ax=No
     if ax is None:
         _, ax = plt.subplots()
     for animal_name, animal_dict in dict_animals_t.items():
+        animal_label = ANIMAL_NAME_LUT.get(animal_name, animal_name)
         # ax.plot(animal_dict["day_after_surgery"], animal_dict["impedances_mean"], label=animal_name, linewidth=0.3, alpha=0.3, marker='s')
         ax.plot(
             animal_dict["timedelta_floats"]/(24*3600), 
             animal_dict["%s_mean"%(FEATURESET_OF_INTEREST)], 
-            label=animal_name, linewidth=0.3, alpha=1, marker='s', 
+            label=animal_label, linewidth=0.3, alpha=1, marker='s', 
             color=animal_colors_[animal_name]
         )
         # scatters = []
@@ -178,6 +206,7 @@ if __name__ == "__main__":
         os.makedirs(PLOTFOLDER)
     
     npznames = sorted(list(filter(lambda x: x.endswith("_firings.npz"), os.listdir(FOLDER))))
+    print(npznames)
     dict_animals = OrderedDict()
     for npzname in npznames:
         aname = npzname.split("_")[0]
@@ -214,6 +243,8 @@ if __name__ == "__main__":
     ax.set_xlim([-1, N_DAYS+PERIOD_IN_DAYS])
     ax.set_xticks(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
     ax.set_xticklabels(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
+    if YLIM is not None:
+        ax.set_ylim(YLIM)
     ax.set_xlabel("Day")
     ax.set_ylabel(YLABEL)
     plt.tight_layout()
@@ -245,6 +276,8 @@ if __name__ == "__main__":
         ax.set_xticklabels(np.arange(0, N_DAYS+1, PERIOD_IN_DAYS))
         ax.set_xlabel("Day")
         ax.set_ylabel(YLABEL)
+        if YLIM is not None:
+            ax.set_ylim(YLIM)
         plt.tight_layout()
         plt.savefig(os.path.join(PLOTFOLDER, "%s_%s_%s.png"%(FEATURESET_OF_INTEREST, PLOT_NAME, group_name)))
         plt.savefig(os.path.join(PLOTFOLDER, "%s_%s_%s.eps"%(FEATURESET_OF_INTEREST, PLOT_NAME, group_name)))

@@ -1,7 +1,7 @@
 import datetime
 
-# SI_SUBDIR = "ms4_whiten_conventional"
-SI_SUBDIR = "ms4_whiten_bothpeaks_thr4d5_upto1100"
+SI_SUBDIR = "ms4_whiten_conventional"
+# SI_SUBDIR = "ms4_whiten_bothpeaks_thr4d5_upto1100"
 list_animals_metadata = []
 si_subdir = SI_SUBDIR
 

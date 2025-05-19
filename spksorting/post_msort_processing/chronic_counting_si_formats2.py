@@ -41,6 +41,7 @@ SORTING_SUBDIRS = [
     "spksort_allday/ms4_whiten_bothpeaks_thr4d5",
     "spksort_allday/ms4_whiten_ebl128-18",
     "spksort_allday/ms4_whiten_conventional",
+    "spksort_allday/ms4_whiten_nosplit",
     "spksort_allday/ms4_whiten_bothpeaks_thr4d5_upto1100",
 ]
 
@@ -72,6 +73,8 @@ def get_session_stat(session_folder):
     sinmul_unit_mask[p2p_amplitudes>AMP_LIMIT_UV] = False
     sinmul_unit_mask[firing_rates<FR_LIMIT_HZ] = False
     p2p_amplitudes = p2p_amplitudes[sinmul_unit_mask]
+    firing_rates = firing_rates[sinmul_unit_mask]
+    snrs = snrs[sinmul_unit_mask]
     n_single_units = np.sum(single_unit_mask)
     n_sing_or_mult = np.sum(sinmul_unit_mask)
     stat_dict = {}
@@ -195,6 +198,8 @@ def process_multi_animals(animal_list, save, output_folder):
                 firing_rates_all=np.array(save_dict['firing_rates_all'], dtype=object),
                 snrs_mean=save_dict['snrs_mean'],
                 snrs_all=np.array(save_dict['snrs_all'], dtype=object),
+                n_units=np.array([len(p2p_amplitudes) for p2p_amplitudes in save_dict['p2p_amplitudes_all']], dtype=int),
+                n_chs=save_dict['n_ch'],
                 )
             df_save = pd.DataFrame()
             df_save['dayAfterSurgery'] = (save_dict['timedelta_floats']/(24*3600)).astype(int)

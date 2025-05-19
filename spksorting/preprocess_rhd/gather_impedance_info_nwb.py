@@ -21,7 +21,7 @@ import pynwb
 from pynwb import NWBHDF5IO
 
 VALID_SESSION_LAMBDA = lambda x: (('_' in x) and ('.' not in x) and ('__' not in x) and ('bad' not in x))
-DATA_SAVE_FOLDER = "./_pls_ignore_chronic_data"
+DATA_SAVE_FOLDER = "../_pls_ignore_chronic_ebl_data_250430"
 DATETIME_STR_PATTERN = "%Y%m%d" # YYYYMMDD
 SESSION_NAMING_PATTERN = r"([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])" # eg 20230806
 # # RHD PARAMETERS
@@ -42,57 +42,12 @@ SESSION_NAMING_PATTERN = r"([0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])" # eg 2023
 #     tmp = filename.split("/")[-1].split("_")
 #     return tmp[1]+'_'+tmp[2].split('.')[0]
 
-
-
-def procfunc_prepdata_rhd(list_of_res_folders : list, animal_info : dict, plot_axes : list):
-    ch_impedances = []
-    session_datetimes = []
-    animal_name = list_of_res_folders[0].split('/')[-2].split('_')[0]
-    surgery_date = animal_info['surgery_date']
-    session_datetimestrs = []
-    for i_work, (resfoldername) in enumerate(list_of_res_folders):
-        # print(i_work)
-        # info_dict={}
-        relevant_fnames = []
-        relevant_fnames.append(os.path.join(resfoldername, "firings.mda"))
-        relevant_fnames.append(os.path.join(resfoldername, "templates.mda"))
-        if not np.all([os.path.exists(f) for f in relevant_fnames]):
-            # count impedance measurements only when valid recording & sorting exist.
-            continue
-        tmp_split = resfoldername.split("/")
-        ressubfoldername = tmp_split[-1] if tmp_split[-1]!="" else tmp_split[-2]
-        datetimestr = re.match(SESSION_NAMING_PATTERN, ressubfoldername)[1]
-        print('    ', ressubfoldername, datetimestr)
-        session_datetime = datetime.datetime.strptime(datetimestr, "%y%m%d_%H%M%S")
-        # info_dict = read_one_session(resfoldername)
-        with open(os.path.join(resfoldername, 'session_rhd_info.json'), "r") as f_read:
-            info_dict = json.load(f_read)
-        if info_dict is None:
-            continue # empty session
-        chs_info = info_dict['chs_info']
-        # TO ACCOMODATE SOME NORA SESSIONS
-        if len(chs_info) > 32:
-            chs_info = chs_info[16:48]
-        chs_impedance = np.array([e['electrode_impedance_magnitude'] for e in chs_info])
-        chs_impedance_valid = chs_impedance[chs_impedance<3e6]
-        session_datetimes.append(session_datetime)
-        ch_impedances.append(chs_impedance_valid)
-        session_datetimestrs.append(datetimestr)
-    timedelta_floats = np.array([(sdt - surgery_date).total_seconds() for sdt in session_datetimes])
-    ch_impedances_mean = np.array([np.mean(k) for k in ch_impedances])
-    valid_ch_counts = np.array([ch_impedances[i_session].shape[0] for i_session in range(timedelta_floats.shape[0])])
-    idx_sorted = np.argsort(timedelta_floats)
-    plot_axes[0].plot(timedelta_floats[idx_sorted], ch_impedances_mean[idx_sorted], label=animal_name, marker='.')
-    plot_axes[1].plot(timedelta_floats[idx_sorted], valid_ch_counts[idx_sorted], label=animal_name, marker='.')
-    # return data
-    return timedelta_floats[idx_sorted], [ch_impedances[idx] for idx in idx_sorted], [session_datetimestrs[idx] for idx in idx_sorted]
-
 def get_session_stat(session_folder):
-    sorting_subdir = "spksort_allday/mountainsort4"
-    sorting_dir = os.path.join(session_folder, sorting_subdir)
-    template_waveforms = np.load(os.path.join(sorting_dir, "sorted_waveforms", "templates_average.npy"))
-    single_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask.csv"), header=None).values.squeeze().astype(bool)
-    sinmul_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask_with_multi.csv"), header=None).values.squeeze().astype(bool)
+    # sorting_subdir = "spksort_allday/mountainsort4"
+    # sorting_dir = os.path.join(session_folder, sorting_subdir)
+    # template_waveforms = np.load(os.path.join(sorting_dir, "sorted_waveforms", "templates_average.npy"))
+    # single_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask.csv"), header=None).values.squeeze().astype(bool)
+    # sinmul_unit_mask = pd.read_csv(os.path.join(sorting_dir, "accept_mask_with_multi.csv"), header=None).values.squeeze().astype(bool)
     nwbfname = next(filter(lambda x: x.endswith(".nwb"), os.listdir(session_folder)))
     nwbio = NWBHDF5IO(os.path.join(session_folder, nwbfname), "r")
     nwbf = nwbio.read()
@@ -111,6 +66,8 @@ def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes)
     f_err = open("./tmp_errormsg.txt", "w")
     for session_folder in session_folders:
         try:
+            if session_folder.endswith("/"):
+                session_folder = session_folder[:-1]
             session_subfolder = os.path.basename(session_folder)
             datetimestr = re.match(SESSION_NAMING_PATTERN, session_subfolder)[1]
             session_datetime = datetime.datetime.strptime(datetimestr, DATETIME_STR_PATTERN)
@@ -134,16 +91,21 @@ def process_one_animal(animal_name, session_folders, surgery_datestr, plot_axes)
     plot_axes[1].plot(timedelta_floats, valid_ch_counts, label=animal_name, marker='.')
     return timedelta_floats, session_imp_sets, session_datetimestrs
 
-def process_multi_animals(animal_list, save):
+def process_multi_animals(list_animals_metadata, save):
     fig1 = plt.figure(figsize=(10,5))
     ax1 = fig1.add_subplot(111)
     fig2 = plt.figure(figsize=(10,5))
     ax2 = fig2.add_subplot(111)
-    for i_animal, (animal_folder, surgery_datestr) in enumerate(animal_list):
-        animal_name = os.path.basename(animal_folder)
-        print(i_animal, animal_folder, animal_name)
-        # timedelta_floats, units_per_channel, valid_timedelta_floats, p2p_amplitudes_mean, p2p_amplitudes_all, session_datetimestrs
-        session_folders = list(map(lambda x: os.path.join(animal_folder, x), filter(lambda x: re.match(SESSION_NAMING_PATTERN, x) is not None, os.listdir(animal_folder))))
+    # for i_animal, (animal_folder, surgery_datestr) in enumerate(animal_list):
+    #     animal_name = os.path.basename(animal_folder)
+    #     print(i_animal, animal_folder, animal_name)
+    #     # timedelta_floats, units_per_channel, valid_timedelta_floats, p2p_amplitudes_mean, p2p_amplitudes_all, session_datetimestrs
+    #     session_folders = list(map(lambda x: os.path.join(animal_folder, x), filter(lambda x: re.match(SESSION_NAMING_PATTERN, x) is not None, os.listdir(animal_folder))))
+    for i_animal, animal_metadata in enumerate(list_animals_metadata):
+        animal_name = animal_metadata["animal_id"]
+        session_folders = [k[0] for k in animal_metadata["session_names"]]
+        surgery_datestr = animal_metadata["surg_datestr"]
+        print(i_animal, animal_name)
         timedelta_floats, ch_impedances, datetimestrs = process_one_animal(animal_name, session_folders, surgery_datestr, [ax1, ax2])
         ch_impedance_dict = dict(zip(["session%d"%(d) for d in range(len(ch_impedances))], ch_impedances))
         if save:
@@ -187,9 +149,9 @@ def process_multi_animals(animal_list, save):
 
 
 if __name__=="__main__":
-    animals_list = [
-        ("/storage/SSD_2T/spinal_stim_exp/processed/S02", "20230713"),
-    ]
+    print(os.getcwd())
+    print(os.listdir())
+    from cfg_counting import list_animals_metadata
     if not os.path.exists(DATA_SAVE_FOLDER):
         os.makedirs(DATA_SAVE_FOLDER)
-    process_multi_animals(animals_list, save=True)
+    process_multi_animals(list_animals_metadata, save=True)
